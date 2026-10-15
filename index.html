@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Trailer Assignment</title>
+  <base target="_top">
+  <style>
+    /* Sunlight-first theme: bright background, dark text, maximum contrast.
+       The result card turns GREEN on success and RED on failure, so the
+       outcome is readable at arm's length without reading any text. */
+    :root { --bg:#f7f5f0; --panel:#ffffff; --line:#d9d4ca; --text:#17191c; --dim:#5f6670;
+            --amber:#a86a00; --amber-bg:#f5a800; --green:#1e8a4a; --red:#c0392b; }
+    * { box-sizing:border-box; margin:0; }
+    body { background:var(--bg); color:var(--text);
+           font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+           min-height:100vh; display:flex; flex-direction:column; align-items:center;
+           padding:16px 16px 40px; -webkit-text-size-adjust:100%; }
+    .topbar { width:100%; max-width:380px; display:flex; align-items:center;
+              justify-content:space-between; margin-bottom:12px; }
+    .eyebrow { font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); }
+    .chip { font-size:14px; font-weight:600; background:var(--panel); border:1px solid var(--line);
+            border-radius:99px; padding:6px 12px; color:var(--text); }
+    .plate { width:100%; max-width:380px; background:var(--panel); border:2px solid var(--amber-bg);
+             border-radius:12px; padding:16px; text-align:center; }
+    .plate .label { font-size:11px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }
+    .plate .id { font-family:"SF Mono",Consolas,Menlo,monospace; font-size:42px; font-weight:800;
+                 letter-spacing:3px; margin-top:2px; word-break:break-all; }
+    .card { width:100%; max-width:380px; background:var(--panel); border:1px solid var(--line);
+            border-radius:12px; padding:20px 16px; margin-top:14px; }
+    .card h2 { font-size:21px; line-height:1.3; }
+    .card.good, .card.bad { text-align:center; }
+    .muted { color:var(--dim); font-size:15px; line-height:1.5; margin-top:8px; }
+    label.small { color:var(--dim); font-size:14px; display:block; margin-top:14px; }
+    input[type=text], select, textarea { width:100%; margin-top:8px; background:#fff; color:var(--text);
+      border:1.5px solid var(--line); border-radius:10px; padding:14px; font-size:18px; }
+    input[type=text] { font-family:"SF Mono",Consolas,Menlo,monospace; text-transform:uppercase;
+                       padding:16px; font-size:20px; }
+    input:focus, select:focus, textarea:focus { outline:3px solid var(--amber-bg); border-color:var(--amber-bg); }
+    .checkrow { display:flex; align-items:center; gap:10px; margin-top:14px; font-size:16px; }
+    .checkrow input { width:22px; height:22px; }
+    .filebtn { display:block; margin-top:14px; border:1.5px dashed var(--line); border-radius:10px;
+               padding:14px; text-align:center; color:var(--dim); font-size:15px; background:#fff; }
+    .filebtn input { display:none; }
+    button { width:100%; margin-top:14px; background:var(--amber-bg); color:#231700; border:0;
+             border-radius:10px; padding:18px; font-size:19px; font-weight:800;
+             letter-spacing:.3px; cursor:pointer; -webkit-appearance:none; }
+    button:active { filter:brightness(.92); }
+    button:disabled { opacity:.5; }
+    button.ghost { background:#fff; color:var(--text); border:1.5px solid var(--line);
+                   font-weight:600; font-size:15px; padding:13px; }
+    .check { font-size:96px; line-height:1; text-align:center; }
+    .when { font-family:"SF Mono",Consolas,Menlo,monospace; font-size:17px; margin-top:8px;
+            text-align:center; color:var(--amber); font-weight:700; }
+    .replaced { margin-top:12px; padding:10px 12px; border-radius:10px;
+                background:rgba(0,0,0,.06); font-size:14.5px; }
+    #repair-note { background:#fdeeec; border:2px solid var(--red); color:#8e2a20; font-weight:700; }
+    .error-text { color:var(--red); font-size:15px; margin-top:10px; min-height:18px; font-weight:600; }
+    .hidden { display:none; }
+    .spinner { margin:44px auto 12px; width:40px; height:40px; border:4px solid var(--line);
+               border-top-color:var(--amber-bg); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion:reduce) { .spinner { animation:none; } }
+
+    /* ---- Verdict colors on the card ---- */
+    .card.good { background:#eaf7ef; border:2px solid var(--green); }
+    .card.good .check { color:var(--green); }
+    .card.good .when { color:#136b38; }
+    .card.bad { background:#fdeeec; border:2px solid var(--red); }
+    .card.bad .check { color:var(--red); }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="eyebrow" id="app-title"></div>
+    <div class="chip hidden" id="driver-chip"></div>
+  </div>
+
+  <div class="plate hidden" id="plate">
+    <div class="label" id="plate-label"></div>
+    <div class="id" id="trailer-id">&mdash;</div>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p class="muted" id="loading-text" style="text-align:center;"></p>
+  </div>
+
+  <div id="view-error" class="card bad hidden">
+    <div class="check">&#10007;</div>
+    <h2 id="error-title"></h2>
+    <p class="muted" id="error-msg"></p>
+    <button id="btn-retry" class="hidden"></button>
+  </div>
+
+  <div id="view-setup" class="card good hidden">
+    <div class="check">&#10003;</div>
+    <h2 id="setup-msg"></h2>
+    <p class="muted" id="setup-hint"></p>
+  </div>
+
+  <div id="view-register" class="card hidden">
+    <h2 id="register-title"></h2>
+    <p class="muted" id="register-hint"></p>
+    <input type="text" id="driver-input" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <div class="error-text" id="register-error"></div>
+    <button id="btn-register"></button>
+  </div>
+
+  <div id="view-success" class="card good hidden">
+    <div class="check">&#10003;</div>
+    <h2 id="success-msg"></h2>
+    <div class="when" id="success-time"></div>
+    <div class="replaced hidden" id="replaced-note"></div>
+    <div class="replaced hidden" id="repair-note"></div>
+    <div class="replaced hidden" id="company-note"></div>
+    <p class="muted" id="logged-hint"></p>
+    <button class="ghost" id="btn-report-1"></button>
+    <button class="ghost" id="btn-undo"></button>
+    <button class="ghost" id="btn-switch"></button>
+  </div>
+
+  <div id="view-mine" class="card hidden">
+    <h2 id="mine-title"></h2>
+    <p class="muted" id="mine-hint"></p>
+    <div class="error-text" id="mine-error"></div>
+    <button id="btn-release"></button>
+    <button class="ghost" id="btn-report-2"></button>
+    <button class="ghost" id="btn-keep"></button>
+  </div>
+
+  <div id="view-released" class="card good hidden">
+    <div class="check">&#10003;</div>
+    <h2 id="released-msg"></h2>
+    <div class="when" id="released-time"></div>
+    <p class="muted" id="released-hint"></p>
+    <button class="ghost" id="btn-report-3"></button>
+  </div>
+
+  <div id="view-report" class="card hidden">
+    <h2 id="report-title"></h2>
+    <label class="small" id="problem-label"></label>
+    <select id="problem-select"></select>
+    <label class="small" id="details-label"></label>
+    <textarea id="problem-details" rows="2" maxlength="500"></textarea>
+    <label class="filebtn">
+      <span id="photo-label"></span>
+      <input type="file" id="photo-input" accept="image/*" capture="environment">
+    </label>
+    <div class="checkrow">
+      <input type="checkbox" id="unusable-check">
+      <span id="unusable-label"></span>
+    </div>
+    <div class="error-text" id="report-error"></div>
+    <button id="btn-send-report"></button>
+  </div>
+
+  <div id="view-reported" class="card good hidden">
+    <div class="check">&#10003;</div>
+    <h2 id="reported-title"></h2>
+    <p class="muted" id="reported-hint"></p>
+  </div>
+
+  <div id="view-undone" class="card hidden">
+    <h2 id="undone-title"></h2>
+    <p class="muted" id="undone-msg"></p>
+  </div>
+
+  <script>
+    var API_URL = "https://script.google.com/macros/s/AKfycbx4dMWxVlqq7uyF-O9PnumTfI4XaoxcSoTGB8myKfwn80TPQ6qqqVbX-J8zTPXME8UqQA/exec";
+    var T = {"appTitle":"Trailer Assignment","plateLabel":"Trailer","working":"Working…","settingUp":"Setting you up…","assigning":"Assigning {trailer} to you…","releasing":"Releasing…","undoing":"Undoing…","sending":"Sending…","errorTitle":"Something's wrong","retryButton":"Try again","networkError":"Could not reach the office system. Check your signal and tap Try again.","serverError":"The office system did not answer properly. Please tell the office.","notConfigured":"This page is not connected to the office system yet. Please tell the office.","noTrailer":"This link has no trailer ID. Re-scan the QR code on the trailer.","setupDone":"You're all set, {name}!","setupHint":"This phone is registered. From now on, just point your camera at the QR code on any trailer — it's assigned to you automatically.","registerTitle":"Who are you?","registerHint":"Enter your driver ID once. This phone will remember you.","registerButton":"Take this trailer","registerEmpty":"Enter your driver ID.","assignedTitle":"{trailer} is yours, {name}","replacedNote":"This trailer was assigned to {name} — you replaced them.","repairWarning":"Warning: this trailer was reported as needing repair.","crossCompany":"Note: this trailer belongs to {company}.","loggedHint":"Logged. You can close this page.","undoButton":"Scanned by mistake? Undo","switchButton":"Not you? Switch driver","undoneTitle":"Assignment removed","undoneBack":"The trailer went back to {name}.","undoneFree":"The trailer is available again.","mineTitle":"You already have {trailer}","mineHint":"Finished with it? Release it so it shows as available.","releaseButton":"Release this trailer","keepButton":"Keep it","keptTitle":"Still yours.","releasedTitle":"{trailer} released","releasedHint":"Released it by mistake? Just scan it again to take it back.","reportButton":"⚠ Report a problem","reportTitle":"Report a problem — {trailer}","problemLabel":"What is wrong?","problemOptions":["Flat tire","Lights not working","Brakes","Body damage","Other"],"detailsLabel":"Details (optional)","photoLabel":"📷 Add a photo (optional)","unusableLabel":"Trailer cannot be used","sendReport":"Send report","reportSentTitle":"Report sent","reportSentHint":"Thank you. The office has been notified."};
+    var START = null;
+
+    var query = (function() {
+      try { return new URLSearchParams(window.location.search); }
+      catch (e) { return { get: function() { return null; } }; }
+    })();
+    var TRAILER_ID = String((START ? START.trailer : query.get('trailer')) || '').trim();
+    var SETUP_DRIVER_ID = String((START ? START.driver : query.get('driver')) || '').trim();
+    var KEY = 'trailer_qr_driver';
+    var driver = null;
+    var GPS = { lat: null, lng: null };
+    var gpsWaiters = [];
+    var retryAction = null;
+
+    // ---- Talking to the office system ----
+    // On the hosted page: a plain POST with credentials 'omit', so the phone
+    // never sends its Google logins. That is what used to trigger Google's
+    // "unable to open the file" page in Safari.
+    // On the script's own address: Google's built-in channel (as before).
+    function useGoogleChannel() {
+      return !API_URL && window.google && google.script && google.script.run;
+    }
+    function api(action, data, cb) {
+      data = data || {};
+      data.action = action;
+      var finished = false;
+      function finish(res) { if (!finished) { finished = true; cb(res); } }
+      function netErr() { finish({ ok: false, code: 'network', error: T.networkError }); }
+
+      if (useGoogleChannel()) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            finish(res || { ok: false, code: 'server', error: T.serverError });
+          })
+          .withFailureHandler(function(e) {
+            finish({ ok: false, code: 'network', error: (e && e.message) || T.networkError });
+          })
+          .apiCall(data);
+        return;
+      }
+      if (!API_URL) { finish({ ok: false, code: 'config', error: T.notConfigured }); return; }
+
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function() { if (ctrl) ctrl.abort(); netErr(); }, 45000);
+      var opts = {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data),
+        credentials: 'omit',
+        redirect: 'follow',
+        cache: 'no-store'
+      };
+      if (ctrl) opts.signal = ctrl.signal;
+      fetch(API_URL, opts)
+        .then(function(r) { return r.text(); })
+        .then(function(txt) {
+          var res = null;
+          try { res = JSON.parse(txt); } catch (e) { res = null; }
+          return res && typeof res === 'object'
+            ? res : { ok: false, code: 'server', error: T.serverError };
+        })
+        .then(function(res) { clearTimeout(timer); finish(res); },
+              function() { clearTimeout(timer); netErr(); });
+    }
+    function isTemporary(res) {
+      return res.code === 'network' || res.code === 'busy';
+    }
+
+    // ---- GPS in the background (never blocks anything) ----
+    function startLocation() {
+      if (!navigator.geolocation) return;
+      try {
+        navigator.geolocation.getCurrentPosition(function(p) {
+          GPS.lat = p.coords.latitude;
+          GPS.lng = p.coords.longitude;
+          var waiting = gpsWaiters;
+          gpsWaiters = [];
+          waiting.forEach(function(f) { try { f(); } catch (e) {} });
+        }, function() {}, { enableHighAccuracy: true, maximumAge: 60000, timeout: 25000 });
+      } catch (e) {}
+    }
+    function onGps(f) { if (GPS.lat !== null) f(); else gpsWaiters.push(f); }
+    function patchLocation() {
+      var id = driver && driver.driverId;
+      if (!id) return;
+      onGps(function() {
+        api('location', { trailerId: TRAILER_ID, driverId: id, lat: GPS.lat, lng: GPS.lng }, function() {});
+      });
+    }
+
+    // ---- Remembering the driver on this phone ----
+    function savedDriver() {
+      try {
+        var d = JSON.parse(localStorage.getItem(KEY));
+        return d && d.driverId ? d : null;
+      } catch (e) { return null; }
+    }
+    function rememberDriver(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+    function forgetDriver() { try { localStorage.removeItem(KEY); } catch (e) {} }
+
+    function fmt(s, vals) {
+      for (var k in vals) s = s.split('{' + k + '}').join(vals[k]);
+      return s;
+    }
+    function el(id) { return document.getElementById(id); }
+
+    function applyTexts() {
+      var map = { 'app-title':T.appTitle, 'plate-label':T.plateLabel, 'error-title':T.errorTitle,
+        'setup-hint':T.setupHint, 'register-title':T.registerTitle, 'register-hint':T.registerHint,
+        'btn-register':T.registerButton, 'logged-hint':T.loggedHint, 'btn-undo':T.undoButton,
+        'btn-switch':T.switchButton, 'mine-hint':T.mineHint, 'btn-release':T.releaseButton,
+        'btn-keep':T.keepButton, 'released-hint':T.releasedHint, 'undone-title':T.undoneTitle,
+        'btn-report-1':T.reportButton, 'btn-report-2':T.reportButton, 'btn-report-3':T.reportButton,
+        'problem-label':T.problemLabel, 'details-label':T.detailsLabel, 'photo-label':T.photoLabel,
+        'unusable-label':T.unusableLabel, 'btn-send-report':T.sendReport,
+        'reported-title':T.reportSentTitle, 'reported-hint':T.reportSentHint,
+        'repair-note':T.repairWarning, 'btn-retry':T.retryButton };
+      for (var id in map) el(id).textContent = map[id];
+      document.title = T.appTitle;
+      var sel = el('problem-select');
+      T.problemOptions.forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt; o.textContent = opt;
+        sel.appendChild(o);
+      });
+    }
+
+    // The driver name chip, always visible once the phone is registered
+    function showChip() {
+      var c = el('driver-chip');
+      if (driver && driver.name) {
+        c.textContent = '👤 ' + driver.name;
+        c.classList.remove('hidden');
+      } else {
+        c.classList.add('hidden');
+      }
+    }
+
+    function show(id) {
+      ['loading','view-error','view-setup','view-register','view-success','view-mine',
+       'view-released','view-report','view-reported','view-undone']
+        .forEach(function(v) { el(v).classList.toggle('hidden', v !== id); });
+      window.scrollTo(0, 0);
+    }
+    // Error card. With a retry function, it also shows a "Try again" button.
+    function fail(msg, retry) {
+      el('error-msg').textContent = msg;
+      retryAction = retry || null;
+      el('btn-retry').classList.toggle('hidden', !retryAction);
+      show('view-error');
+    }
+    el('btn-retry').onclick = function() { if (retryAction) retryAction(); };
+    function loadingText(t) { el('loading-text').textContent = t; }
+    function vibrate() { try { if (navigator.vibrate) navigator.vibrate(120); } catch (e) {} }
+
+    function init() {
+      applyTexts();
+      if (!API_URL && !useGoogleChannel()) return fail(T.notConfigured);
+      if (SETUP_DRIVER_ID) return setup();
+
+      if (!TRAILER_ID) return fail(T.noTrailer);
+      el('trailer-id').textContent = TRAILER_ID;
+      el('plate').classList.remove('hidden');
+      startLocation();
+
+      driver = savedDriver();
+      showChip();
+      if (driver) { assign(); } else { show('view-register'); }
+    }
+
+    // One-time phone registration from a setup link
+    function setup() {
+      loadingText(T.settingUp);
+      show('loading');
+      api('validateDriver', { driverId: SETUP_DRIVER_ID }, function(res) {
+        if (!res.ok) return fail(res.error, isTemporary(res) ? setup : null);
+        rememberDriver(res);
+        driver = res;
+        showChip();
+        el('setup-msg').textContent = fmt(T.setupDone, { name: res.name });
+        show('view-setup');
+      });
+    }
+
+    function assign() {
+      loadingText(fmt(T.assigning, { trailer: TRAILER_ID }));
+      show('loading');
+      var sentGps = GPS.lat !== null;
+      api('assign', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng }, function(res) {
+        if (!res.ok) {
+          // Only an unknown driver ID logs the phone out. Any other problem
+          // (unknown trailer, no signal, busy) keeps the driver registered.
+          if (res.code === 'unknownDriver') {
+            forgetDriver();
+            driver = null;
+            showChip();
+            el('register-error').textContent = res.error;
+            show('view-register');
+            return;
+          }
+          return fail(res.error, isTemporary(res) ? assign : null);
+        }
+        if (res.alreadyYours) {
+          el('mine-error').textContent = '';
+          el('mine-title').textContent = fmt(T.mineTitle, { trailer: res.trailerId });
+          show('view-mine');
+          return;
+        }
+        if (res.driverName && res.driverName !== driver.name) {
+          driver.name = res.driverName; // name changed in the sheet
+          rememberDriver(driver);
+          showChip();
+        }
+        el('success-msg').textContent =
+          fmt(T.assignedTitle, { trailer: res.trailerId, name: res.driverName });
+        el('success-time').textContent = res.timestamp;
+        var note = el('replaced-note');
+        if (res.replacedName) {
+          note.textContent = fmt(T.replacedNote, { name: res.replacedName });
+          note.classList.remove('hidden');
+        } else { note.classList.add('hidden'); }
+        el('repair-note').classList.toggle('hidden', !res.repairWarning);
+        var cnote = el('company-note');
+        if (res.trailerCompany) {
+          cnote.textContent = fmt(T.crossCompany, { company: res.trailerCompany });
+          cnote.classList.remove('hidden');
+        } else { cnote.classList.add('hidden'); }
+        show('view-success');
+        vibrate();
+        if (!sentGps) patchLocation();
+      });
+    }
+
+    el('btn-register').onclick = function() {
+      var id = el('driver-input').value.trim();
+      var err = el('register-error');
+      err.textContent = '';
+      if (!id) { err.textContent = T.registerEmpty; return; }
+      var btn = this;
+      btn.disabled = true;
+      api('validateDriver', { driverId: id }, function(res) {
+        btn.disabled = false;
+        if (!res.ok) { err.textContent = res.error; return; }
+        driver = res;
+        rememberDriver(res);
+        showChip();
+        assign();
+      });
+    };
+
+    function release() {
+      loadingText(T.releasing);
+      show('loading');
+      var sentGps = GPS.lat !== null;
+      api('release', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng }, function(res) {
+        if (!res.ok) {
+          if (isTemporary(res)) return fail(res.error, release);
+          el('mine-error').textContent = res.error;
+          show('view-mine');
+          return;
+        }
+        el('released-msg').textContent = fmt(T.releasedTitle, { trailer: res.trailerId });
+        el('released-time').textContent = res.timestamp;
+        show('view-released');
+        vibrate();
+        if (!sentGps) patchLocation();
+      });
+    }
+    el('btn-release').onclick = release;
+
+    var reportId = '';
+    function newReportId() {
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+    function resetReport() {
+      el('problem-select').selectedIndex = 0;
+      el('problem-details').value = '';
+      el('photo-input').value = '';
+      el('photo-label').textContent = T.photoLabel;
+      el('unusable-check').checked = false;
+      reportId = newReportId();
+    }
+    function openReport() {
+      if (!reportId) reportId = newReportId();
+      el('report-title').textContent = fmt(T.reportTitle, { trailer: TRAILER_ID });
+      el('report-error').textContent = '';
+      show('view-report');
+    }
+    el('btn-report-1').onclick = openReport;
+    el('btn-report-2').onclick = openReport;
+    el('btn-report-3').onclick = openReport;
+
+    el('photo-input').onchange = function() {
+      el('photo-label').textContent = this.files && this.files[0] ? '✓ ' + this.files[0].name : T.photoLabel;
+    };
+
+    // Shrinks the photo on the phone before sending (fast on weak signal)
+    function preparePhoto(cb) {
+      var input = el('photo-input');
+      if (!input.files || !input.files[0]) return cb('');
+      var reader = new FileReader();
+      reader.onload = function() {
+        var img = new Image();
+        img.onload = function() {
+          try {
+            var max = 1280, w = img.width, h = img.height;
+            if (w > max || h > max) {
+              if (w > h) { h = Math.round(h * max / w); w = max; }
+              else { w = Math.round(w * max / h); h = max; }
+            }
+            var c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            cb(c.toDataURL('image/jpeg', 0.7));
+          } catch (e) { cb(''); }
+        };
+        img.onerror = function() { cb(''); };
+        img.src = reader.result;
+      };
+      reader.onerror = function() { cb(''); };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    el('btn-send-report').onclick = function() {
+      var problem = el('problem-select').value;
+      var details = el('problem-details').value.trim();
+      var unusable = el('unusable-check').checked;
+      loadingText(T.sending);
+      show('loading');
+      preparePhoto(function(photo) {
+        api('report', { trailerId: TRAILER_ID, driverId: driver.driverId, problem: problem,
+                        details: details, unusable: unusable, photo: photo,
+                        lat: GPS.lat, lng: GPS.lng, reqId: reportId }, function(res) {
+          if (!res.ok) {
+            el('report-error').textContent = res.error;
+            show('view-report');
+            return;
+          }
+          resetReport();
+          show('view-reported');
+          vibrate();
+        });
+      });
+    };
+
+    el('btn-keep').onclick = function() {
+      el('undone-title').textContent = T.keptTitle;
+      el('undone-msg').textContent = T.loggedHint;
+      show('view-undone');
+    };
+
+    function undo() {
+      gpsWaiters = []; // a late GPS fix must not land on the undone pickup
+      loadingText(T.undoing);
+      show('loading');
+      api('undo', { trailerId: TRAILER_ID, driverId: driver.driverId }, function(res) {
+        if (!res.ok) return fail(res.error, isTemporary(res) ? undo : null);
+        el('undone-title').textContent = T.undoneTitle;
+        el('undone-msg').textContent = res.restoredName
+          ? fmt(T.undoneBack, { name: res.restoredName })
+          : T.undoneFree;
+        show('view-undone');
+      });
+    }
+    el('btn-undo').onclick = undo;
+
+    el('btn-switch').onclick = function() {
+      forgetDriver();
+      driver = null;
+      showChip();
+      el('driver-input').value = '';
+      el('register-error').textContent = '';
+      show('view-register');
+    };
+
+    init();
+  </script>
+</body>
+</html>
