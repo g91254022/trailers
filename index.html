@@ -35,8 +35,8 @@
     label.small { color:var(--dim); font-size:14px; display:block; margin-top:14px; }
     input[type=text], select, textarea { width:100%; margin-top:8px; background:#fff; color:var(--text);
       border:1.5px solid var(--line); border-radius:10px; padding:14px; font-size:18px; }
-    input[type=text] { font-family:"SF Mono",Consolas,Menlo,monospace; text-transform:uppercase;
-                       padding:16px; font-size:20px; }
+    input[type=text] { font-family:"SF Mono",Consolas,Menlo,monospace; text-align:center;
+                       padding:14px; font-size:32px; font-weight:700; letter-spacing:.35em; }
     input:focus, select:focus, textarea:focus { outline:3px solid var(--amber-bg); border-color:var(--amber-bg); }
     .checkrow { display:flex; align-items:center; gap:10px; margin-top:14px; font-size:16px; }
     .checkrow input { width:22px; height:22px; }
@@ -103,7 +103,8 @@
   <div id="view-register" class="card hidden">
     <h2 id="register-title"></h2>
     <p class="muted" id="register-hint"></p>
-    <input type="text" id="driver-input" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <input type="text" id="driver-input" inputmode="numeric" pattern="[0-9]*" maxlength="8"
+           autocomplete="off" autocorrect="off" spellcheck="false">
     <div class="error-text" id="register-error"></div>
     <button id="btn-register"></button>
   </div>
@@ -169,7 +170,7 @@
 
   <script>
     var API_URL = "https://script.google.com/macros/s/AKfycbx4dMWxVlqq7uyF-O9PnumTfI4XaoxcSoTGB8myKfwn80TPQ6qqqVbX-J8zTPXME8UqQA/exec";
-    var T = {"appTitle":"Trailer Assignment","plateLabel":"Trailer","working":"Working…","settingUp":"Setting you up…","assigning":"Assigning {trailer} to you…","releasing":"Releasing…","undoing":"Undoing…","sending":"Sending…","errorTitle":"Something's wrong","retryButton":"Try again","networkError":"Could not reach the office system. Check your signal and tap Try again.","serverError":"The office system did not answer properly. Please tell the office.","notConfigured":"This page is not connected to the office system yet. Please tell the office.","noTrailer":"This link has no trailer ID. Re-scan the QR code on the trailer.","setupDone":"You're all set, {name}!","setupHint":"This phone is registered. From now on, just point your camera at the QR code on any trailer — it's assigned to you automatically.","registerTitle":"Who are you?","registerHint":"Enter your driver ID once. This phone will remember you.","registerButton":"Take this trailer","registerEmpty":"Enter your driver ID.","assignedTitle":"{trailer} is yours, {name}","replacedNote":"This trailer was assigned to {name} — you replaced them.","repairWarning":"Warning: this trailer was reported as needing repair.","crossCompany":"Note: this trailer belongs to {company}.","loggedHint":"Logged. You can close this page.","undoButton":"Scanned by mistake? Undo","switchButton":"Not you? Switch driver","undoneTitle":"Assignment removed","undoneBack":"The trailer went back to {name}.","undoneFree":"The trailer is available again.","mineTitle":"You already have {trailer}","mineHint":"Finished with it? Release it so it shows as available.","releaseButton":"Release this trailer","keepButton":"Keep it","keptTitle":"Still yours.","releasedTitle":"{trailer} released","releasedHint":"Released it by mistake? Just scan it again to take it back.","reportButton":"⚠ Report a problem","reportTitle":"Report a problem — {trailer}","problemLabel":"What is wrong?","problemOptions":["Flat tire","Lights not working","Brakes","Body damage","Other"],"detailsLabel":"Details (optional)","photoLabel":"📷 Add a photo (optional)","unusableLabel":"Trailer cannot be used","sendReport":"Send report","reportSentTitle":"Report sent","reportSentHint":"Thank you. The office has been notified."};
+    var T = {"pinLength":4,"appTitle":"Trailer Assignment","plateLabel":"Trailer","working":"Working…","settingUp":"Setting you up…","assigning":"Assigning {trailer} to you…","releasing":"Releasing…","undoing":"Undoing…","sending":"Sending…","errorTitle":"Something's wrong","retryButton":"Try again","networkError":"Could not reach the office system. Check your signal and tap Try again.","serverError":"The office system did not answer properly. Please tell the office.","notConfigured":"This page is not connected to the office system yet. Please tell the office.","noTrailer":"This link has no trailer ID. Re-scan the QR code on the trailer.","setupDone":"You're all set, {name}!","setupHint":"This phone is registered. From now on, just point your camera at the QR code on any trailer — it's assigned to you automatically.","registerTitle":"Who are you?","registerHint":"Enter your {n}-digit driver code. This phone will remember you.","registerButton":"Take this trailer","registerEmpty":"Enter your driver code.","codeTooShort":"Enter all {n} digits of your driver code.","registerDone":"Continue","assignedTitle":"{trailer} is yours, {name}","replacedNote":"This trailer was assigned to {name} — you replaced them.","repairWarning":"Warning: this trailer was reported as needing repair.","crossCompany":"Note: this trailer belongs to {company}.","loggedHint":"Logged. You can close this page.","undoButton":"Scanned by mistake? Undo","switchButton":"Not you? Switch driver","undoneTitle":"Assignment removed","undoneBack":"The trailer went back to {name}.","undoneFree":"The trailer is available again.","mineTitle":"You already have {trailer}","mineHint":"Finished with it? Release it so it shows as available.","releaseButton":"Release this trailer","keepButton":"Keep it","keptTitle":"Still yours.","releasedTitle":"{trailer} released","releasedHint":"Released it by mistake? Just scan it again to take it back.","reportButton":"⚠ Report a problem","reportTitle":"Report a problem — {trailer}","problemLabel":"What is wrong?","problemOptions":["Flat tire","Lights not working","Brakes","Body damage","Other"],"detailsLabel":"Details (optional)","photoLabel":"📷 Add a photo (optional)","unusableLabel":"Trailer cannot be used","sendReport":"Send report","reportSentTitle":"Report sent","reportSentHint":"Thank you. The office has been notified."};
     var START = null;
 
     var query = (function() {
@@ -177,12 +178,21 @@
       catch (e) { return { get: function() { return null; } }; }
     })();
     var TRAILER_ID = String((START ? START.trailer : query.get('trailer')) || '').trim();
-    var SETUP_DRIVER_ID = String((START ? START.driver : query.get('driver')) || '').trim();
+    var SETUP_DRIVER_ID = String((START ? START.driver : query.get('driver')) || '').trim(); // old links
+    var SETUP_KEY = String((START ? START.k : query.get('k')) || '').trim();
+    // Take the key out of the address bar, so it is not in a shared link or screenshot
+    if (SETUP_KEY && !START) {
+      try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
+    }
     var KEY = 'trailer_qr_driver';
     var driver = null;
     var GPS = { lat: null, lng: null };
     var gpsWaiters = [];
     var retryAction = null;
+    var afterLogin = null;  // what to do once the driver has typed their code
+    function newReqId() {
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
 
     // ---- Talking to the office system ----
     // On the hosted page: a plain POST with credentials 'omit', so the phone
@@ -195,6 +205,7 @@
     function api(action, data, cb) {
       data = data || {};
       data.action = action;
+      if (driver && driver.key && data.driverId) data.key = driver.key;
       var finished = false;
       function finish(res) { if (!finished) { finished = true; cb(res); } }
       function netErr() { finish({ ok: false, code: 'network', error: T.networkError }); }
@@ -264,7 +275,7 @@
     function savedDriver() {
       try {
         var d = JSON.parse(localStorage.getItem(KEY));
-        return d && d.driverId ? d : null;
+        return d && d.driverId && d.key ? d : null;
       } catch (e) { return null; }
     }
     function rememberDriver(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
@@ -278,7 +289,7 @@
 
     function applyTexts() {
       var map = { 'app-title':T.appTitle, 'plate-label':T.plateLabel, 'error-title':T.errorTitle,
-        'setup-hint':T.setupHint, 'register-title':T.registerTitle, 'register-hint':T.registerHint,
+        'setup-hint':T.setupHint, 'register-title':T.registerTitle,
         'btn-register':T.registerButton, 'logged-hint':T.loggedHint, 'btn-undo':T.undoButton,
         'btn-switch':T.switchButton, 'mine-hint':T.mineHint, 'btn-release':T.releaseButton,
         'btn-keep':T.keepButton, 'released-hint':T.releasedHint, 'undone-title':T.undoneTitle,
@@ -286,7 +297,8 @@
         'problem-label':T.problemLabel, 'details-label':T.detailsLabel, 'photo-label':T.photoLabel,
         'unusable-label':T.unusableLabel, 'btn-send-report':T.sendReport,
         'reported-title':T.reportSentTitle, 'reported-hint':T.reportSentHint,
-        'repair-note':T.repairWarning, 'btn-retry':T.retryButton };
+        'repair-note':T.repairWarning, 'btn-retry':T.retryButton,
+        'register-hint':fmt(T.registerHint, { n: T.pinLength }) };
       for (var id in map) el(id).textContent = map[id];
       document.title = T.appTitle;
       var sel = el('problem-select');
@@ -328,7 +340,8 @@
     function init() {
       applyTexts();
       if (!API_URL && !useGoogleChannel()) return fail(T.notConfigured);
-      if (SETUP_DRIVER_ID) return setup();
+      if (SETUP_KEY) return setup();
+      if (!TRAILER_ID && SETUP_DRIVER_ID) return askCode(''); // an old setup link
 
       if (!TRAILER_ID) return fail(T.noTrailer);
       el('trailer-id').textContent = TRAILER_ID;
@@ -337,40 +350,95 @@
 
       driver = savedDriver();
       showChip();
-      if (driver) { assign(); } else { show('view-register'); }
+      if (driver) { assign(); } else { askCode(''); }
+    }
+
+    // The "Who are you?" screen (driver code). 'then' = the action that was
+    // interrupted (release, report, undo); it continues after the code.
+    function askCode(message, then) {
+      forgetDriver();
+      driver = null;
+      afterLogin = then || null;
+      showChip();
+      el('driver-input').value = '';
+      el('register-error').textContent = message || '';
+      el('btn-register').textContent = (TRAILER_ID && !afterLogin) ? T.registerButton : T.registerDone;
+      show('view-register');
+    }
+    // The office system no longer accepts this phone -> ask for the code
+    function needsLogin(res, then) {
+      if (res.code !== 'auth') return false;
+      askCode(res.error, then);
+      return true;
+    }
+    function continueAfterLogin() {
+      var next = afterLogin;
+      afterLogin = null;
+      if (next) next();
+      else if (TRAILER_ID) assign();
+      else showSetupDone();
+    }
+    function registered(res) {
+      driver = { driverId: res.driverId, name: res.name, company: res.company, key: res.key };
+      rememberDriver(driver);
+      showChip();
+    }
+    function showSetupDone() {
+      el('setup-msg').textContent = fmt(T.setupDone, { name: driver.name });
+      show('view-setup');
     }
 
     // One-time phone registration from a setup link
     function setup() {
       loadingText(T.settingUp);
       show('loading');
-      api('validateDriver', { driverId: SETUP_DRIVER_ID }, function(res) {
-        if (!res.ok) return fail(res.error, isTemporary(res) ? setup : null);
-        rememberDriver(res);
-        driver = res;
-        showChip();
-        el('setup-msg').textContent = fmt(T.setupDone, { name: res.name });
-        show('view-setup');
+      api('login', { key: SETUP_KEY }, function(res) {
+        if (!res.ok) {
+          if (isTemporary(res)) return fail(res.error, setup);
+          return askCode(res.error);
+        }
+        registered(res);
+        if (TRAILER_ID) assign(); else showSetupDone();
       });
     }
 
-    function assign() {
+    function showAssigned(res) {
+      if (res.driverName && res.driverName !== driver.name) {
+        driver.name = res.driverName; // name changed in the sheet
+        rememberDriver(driver);
+        showChip();
+      }
+      el('success-msg').textContent =
+        fmt(T.assignedTitle, { trailer: res.trailerId, name: res.driverName });
+      el('success-time').textContent = res.timestamp || '';
+      var note = el('replaced-note');
+      if (res.replacedName) {
+        note.textContent = fmt(T.replacedNote, { name: res.replacedName });
+        note.classList.remove('hidden');
+      } else { note.classList.add('hidden'); }
+      el('repair-note').classList.toggle('hidden', !res.repairWarning);
+      var cnote = el('company-note');
+      if (res.trailerCompany) {
+        cnote.textContent = fmt(T.crossCompany, { company: res.trailerCompany });
+        cnote.classList.remove('hidden');
+      } else { cnote.classList.add('hidden'); }
+      show('view-success');
+      vibrate();
+    }
+
+    // reqId: "Try again" re-sends the same request, so if the first one
+    // already worked the office answers exactly as it did the first time.
+    function assign(reqId) {
+      reqId = reqId || newReqId();
       loadingText(fmt(T.assigning, { trailer: TRAILER_ID }));
       show('loading');
       var sentGps = GPS.lat !== null;
-      api('assign', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng }, function(res) {
+      api('assign', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng, reqId: reqId }, function(res) {
         if (!res.ok) {
-          // Only an unknown driver ID logs the phone out. Any other problem
+          // Only a rejected phone key asks for the code again. Any other problem
           // (unknown trailer, no signal, busy) keeps the driver registered.
-          if (res.code === 'unknownDriver') {
-            forgetDriver();
-            driver = null;
-            showChip();
-            el('register-error').textContent = res.error;
-            show('view-register');
-            return;
-          }
-          return fail(res.error, isTemporary(res) ? assign : null);
+          if (needsLogin(res)) return;
+          return fail(res.error, isTemporary(res) ? function() { assign(reqId); } : null);
         }
         if (res.alreadyYours) {
           el('mine-error').textContent = '';
@@ -378,55 +446,44 @@
           show('view-mine');
           return;
         }
-        if (res.driverName && res.driverName !== driver.name) {
-          driver.name = res.driverName; // name changed in the sheet
-          rememberDriver(driver);
-          showChip();
-        }
-        el('success-msg').textContent =
-          fmt(T.assignedTitle, { trailer: res.trailerId, name: res.driverName });
-        el('success-time').textContent = res.timestamp;
-        var note = el('replaced-note');
-        if (res.replacedName) {
-          note.textContent = fmt(T.replacedNote, { name: res.replacedName });
-          note.classList.remove('hidden');
-        } else { note.classList.add('hidden'); }
-        el('repair-note').classList.toggle('hidden', !res.repairWarning);
-        var cnote = el('company-note');
-        if (res.trailerCompany) {
-          cnote.textContent = fmt(T.crossCompany, { company: res.trailerCompany });
-          cnote.classList.remove('hidden');
-        } else { cnote.classList.add('hidden'); }
-        show('view-success');
-        vibrate();
+        showAssigned(res);
         if (!sentGps) patchLocation();
       });
     }
 
     el('btn-register').onclick = function() {
-      var id = el('driver-input').value.trim();
+      var pin = el('driver-input').value.replace(/[^0-9]/g, '');
       var err = el('register-error');
       err.textContent = '';
-      if (!id) { err.textContent = T.registerEmpty; return; }
-      var btn = this;
+      if (!pin) { err.textContent = T.registerEmpty; return; }
+      if (pin.length < T.pinLength) { err.textContent = fmt(T.codeTooShort, { n: T.pinLength }); return; }
+      var btn = el('btn-register');
       btn.disabled = true;
-      api('validateDriver', { driverId: id }, function(res) {
+      api('login', { pin: pin }, function(res) {
         btn.disabled = false;
-        if (!res.ok) { err.textContent = res.error; return; }
-        driver = res;
-        rememberDriver(res);
-        showChip();
-        assign();
+        if (!res.ok) {
+          el('driver-input').value = '';
+          err.textContent = res.error;
+          return;
+        }
+        registered(res);
+        continueAfterLogin();
       });
     };
+    el('driver-input').onkeydown = function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); el('btn-register').click(); }
+    };
 
-    function release() {
+    function release(reqId) {
+      reqId = reqId || newReqId();
+      var again = function() { release(reqId); };
       loadingText(T.releasing);
       show('loading');
       var sentGps = GPS.lat !== null;
-      api('release', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng }, function(res) {
+      api('release', { trailerId: TRAILER_ID, driverId: driver.driverId, lat: GPS.lat, lng: GPS.lng, reqId: reqId }, function(res) {
         if (!res.ok) {
-          if (isTemporary(res)) return fail(res.error, release);
+          if (needsLogin(res, again)) return;
+          if (isTemporary(res)) return fail(res.error, again);
           el('mine-error').textContent = res.error;
           show('view-mine');
           return;
@@ -438,12 +495,10 @@
         if (!sentGps) patchLocation();
       });
     }
-    el('btn-release').onclick = release;
+    el('btn-release').onclick = function() { release(); };
 
     var reportId = '';
-    function newReportId() {
-      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
-    }
+    var newReportId = newReqId;
     function resetReport() {
       el('problem-select').selectedIndex = 0;
       el('problem-details').value = '';
@@ -493,7 +548,8 @@
       reader.readAsDataURL(input.files[0]);
     }
 
-    el('btn-send-report').onclick = function() {
+    el('btn-send-report').onclick = sendReport;
+    function sendReport() {
       var problem = el('problem-select').value;
       var details = el('problem-details').value.trim();
       var unusable = el('unusable-check').checked;
@@ -504,6 +560,7 @@
                         details: details, unusable: unusable, photo: photo,
                         lat: GPS.lat, lng: GPS.lng, reqId: reportId }, function(res) {
           if (!res.ok) {
+            if (needsLogin(res, sendReport)) return;
             el('report-error').textContent = res.error;
             show('view-report');
             return;
@@ -513,7 +570,7 @@
           vibrate();
         });
       });
-    };
+    }
 
     el('btn-keep').onclick = function() {
       el('undone-title').textContent = T.keptTitle;
@@ -521,12 +578,17 @@
       show('view-undone');
     };
 
-    function undo() {
+    function undo(reqId) {
+      reqId = reqId || newReqId();
+      var again = function() { undo(reqId); };
       gpsWaiters = []; // a late GPS fix must not land on the undone pickup
       loadingText(T.undoing);
       show('loading');
-      api('undo', { trailerId: TRAILER_ID, driverId: driver.driverId }, function(res) {
-        if (!res.ok) return fail(res.error, isTemporary(res) ? undo : null);
+      api('undo', { trailerId: TRAILER_ID, driverId: driver.driverId, reqId: reqId }, function(res) {
+        if (!res.ok) {
+          if (needsLogin(res, again)) return;
+          return fail(res.error, isTemporary(res) ? again : null);
+        }
         el('undone-title').textContent = T.undoneTitle;
         el('undone-msg').textContent = res.restoredName
           ? fmt(T.undoneBack, { name: res.restoredName })
@@ -534,16 +596,9 @@
         show('view-undone');
       });
     }
-    el('btn-undo').onclick = undo;
+    el('btn-undo').onclick = function() { undo(); };
 
-    el('btn-switch').onclick = function() {
-      forgetDriver();
-      driver = null;
-      showChip();
-      el('driver-input').value = '';
-      el('register-error').textContent = '';
-      show('view-register');
-    };
+    el('btn-switch').onclick = function() { askCode(''); };
 
     init();
   </script>
